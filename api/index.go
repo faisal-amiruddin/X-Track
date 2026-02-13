@@ -43,18 +43,6 @@ func initializeApp() {
 		panic("Failed to connect to database: " + err.Error())
 	}
 
-	// Run migrations
-	if err := models.AutoMigrate(db); err != nil {
-		panic("Failed to run migrations: " + err.Error())
-	}
-
-	// Ensure admin user exists
-	userService := service.NewUserService(db)
-	if err := userService.EnsureAdminExists(cfg.Admin.Username, cfg.Admin.Password); err != nil {
-		// Log warning but don't fail
-		println("Warning: Failed to create admin user:", err.Error())
-	}
-
 	// Initialize Gin router
 	router = gin.New()
 	router.Use(gin.Recovery())
