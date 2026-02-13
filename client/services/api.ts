@@ -1,6 +1,6 @@
 import { Account, ApiResponse, AuthResponse, OverallSummary, Statistic, TodaySummary, User } from '../types';
 
-const BASE_URL = 'http://localhost:8080/api';
+const BASE_URL = 'https://xtrack-be.vercel.app/api';
 
 // Helper to handle headers
 const getHeaders = (token?: string | null) => {
