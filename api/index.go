@@ -9,7 +9,6 @@ import (
 	"x-track/middleware"
 	"x-track/models"
 	"x-track/routes"
-	"x-track/service"
 
 	"github.com/gin-gonic/gin"
 )
