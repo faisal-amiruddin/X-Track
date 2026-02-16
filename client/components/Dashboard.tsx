@@ -111,7 +111,7 @@ const ProfitCalendar = ({ statsMap }: { statsMap: Record<string, Statistic> }) =
     }
 
     return (
-        <div className="glass-card rounded-3xl p-6 md:p-8">
+        <div className="glass-card rounded-3xl p-6 md:p-8 w-full">
             <div className="flex items-center justify-between mb-8">
                 <h3 className="text-xl font-bold text-white flex items-center gap-2">
                     <CalendarIcon className="w-5 h-5 text-accent" />
@@ -597,9 +597,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout }) =
                         </TiltCard>
                     </div>
 
-                    {/* Charts & Calendar */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
-                        <div className="glass-card p-6 md:p-8 rounded-3xl">
+                    {/* Charts & Calendar - Stacked Layout */}
+                    <div className="flex flex-col gap-8 mb-12">
+                        <div className="glass-card p-6 md:p-8 rounded-3xl w-full">
                             <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
                                 <div className="w-2 h-6 bg-primary rounded-full"></div>
                                 Equity Curve
