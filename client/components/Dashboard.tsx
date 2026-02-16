@@ -23,7 +23,7 @@ interface DashboardProps {
   onLogout: () => void;
 }
 
-// --- 3D Card Component ---
+// --- 3D Card Component (Fixed: Removed Drag) ---
 const TiltCard = ({ children, className }: { children: React.ReactNode, className?: string }) => {
     const x = useMotionValue(0);
     const y = useMotionValue(0);
@@ -34,12 +34,8 @@ const TiltCard = ({ children, className }: { children: React.ReactNode, classNam
         <div className={`perspective-1000 ${className}`}>
             <MotionDiv
                 style={{ x, y, rotateX, rotateY, z: 100 }}
-                drag
-                dragElastic={0.16}
-                dragConstraints={{ top: 0, left: 0, right: 0, bottom: 0 }}
-                whileHover={{ scale: 1.02, cursor: 'grab' }}
-                whileTap={{ cursor: 'grabbing' }}
-                className="w-full h-full glass-card rounded-2xl p-6 transition-shadow duration-300 hover:shadow-[0_0_30px_rgba(99,102,241,0.15)] transform-gpu"
+                whileHover={{ scale: 1.02 }}
+                className="w-full h-full glass-card rounded-2xl p-5 md:p-6 transition-shadow duration-300 hover:shadow-[0_0_30px_rgba(99,102,241,0.15)] transform-gpu"
             >
                 {children}
             </MotionDiv>
@@ -47,7 +43,7 @@ const TiltCard = ({ children, className }: { children: React.ReactNode, classNam
     );
 };
 
-// --- Calendar Component ---
+// --- Calendar Component (Responsive Updated) ---
 const ProfitCalendar = ({ statsMap }: { statsMap: Record<string, Statistic> }) => {
     const [currentDate, setCurrentDate] = useState(new Date());
 
@@ -63,7 +59,7 @@ const ProfitCalendar = ({ statsMap }: { statsMap: Record<string, Statistic> }) =
     const days = [];
     // Padding for empty days at start
     for (let i = 0; i < firstDayOfMonth; i++) {
-        days.push(<div key={`empty-${i}`} className="h-24 md:h-28 bg-slate-900/30 border border-white/5 rounded-lg opacity-50"></div>);
+        days.push(<div key={`empty-${i}`} className="h-16 md:h-28 bg-slate-900/30 border border-white/5 rounded-lg opacity-50"></div>);
     }
 
     // Actual days
@@ -76,7 +72,7 @@ const ProfitCalendar = ({ statsMap }: { statsMap: Record<string, Statistic> }) =
         days.push(
             <div 
                 key={d} 
-                className={`relative h-24 md:h-28 p-2 rounded-xl border transition-all hover:scale-[1.03] hover:z-10 group ${
+                className={`relative h-16 md:h-28 p-1 md:p-2 rounded-lg md:rounded-xl border transition-all hover:z-10 group flex flex-col justify-between ${
                     hasData 
                         ? isProfit 
                             ? 'bg-green-500/10 border-green-500/30 shadow-[0_0_15px_rgba(34,197,94,0.1)]' 
@@ -84,25 +80,27 @@ const ProfitCalendar = ({ statsMap }: { statsMap: Record<string, Statistic> }) =
                         : 'bg-slate-800/20 border-white/5 hover:bg-slate-800/40'
                 }`}
             >
-                <span className={`text-xs font-mono font-bold ${
-                    d === new Date().getDate() && currentDate.getMonth() === new Date().getMonth() 
-                        ? 'text-primary bg-primary/20 px-1.5 py-0.5 rounded-full' 
-                        : 'text-slate-500'
-                }`}>
-                    {d}
-                </span>
+                <div className="flex justify-start">
+                    <span className={`text-[10px] md:text-xs font-mono font-bold ${
+                        d === new Date().getDate() && currentDate.getMonth() === new Date().getMonth() 
+                            ? 'text-primary bg-primary/20 px-1.5 py-0.5 rounded-full' 
+                            : 'text-slate-500'
+                    }`}>
+                        {d}
+                    </span>
+                </div>
 
                 {hasData ? (
-                    <div className="flex flex-col items-center justify-center h-full pb-4">
-                        <span className={`text-sm md:text-lg font-bold ${isProfit ? 'text-green-400' : 'text-red-400'}`}>
-                            {stat.daily_pl >= 0 ? '+' : ''}{stat.daily_pl.toLocaleString('en-US', {maximumFractionDigits: 0})}
+                    <div className="flex flex-col items-center justify-center h-full pb-1 md:pb-4">
+                        <span className={`text-xs md:text-lg font-bold truncate w-full text-center ${isProfit ? 'text-green-400' : 'text-red-400'}`}>
+                            {stat.daily_pl >= 0 ? '+$' : ''}{stat.daily_pl.toLocaleString('en-US', {maximumFractionDigits: 0})}
                         </span>
                         <span className="text-[10px] text-slate-500 font-mono mt-1 hidden md:block">
                             {stat.trades_today} Trades
                         </span>
                     </div>
                 ) : (
-                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="hidden md:flex absolute inset-0 items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                          <span className="text-[10px] text-slate-600">-</span>
                     </div>
                 )}
@@ -111,17 +109,17 @@ const ProfitCalendar = ({ statsMap }: { statsMap: Record<string, Statistic> }) =
     }
 
     return (
-        <div className="glass-card rounded-3xl p-6 md:p-8 w-full">
-            <div className="flex items-center justify-between mb-8">
-                <h3 className="text-xl font-bold text-white flex items-center gap-2">
+        <div className="glass-card rounded-3xl p-4 md:p-8 w-full">
+            <div className="flex flex-col md:flex-row items-center justify-between mb-6 md:mb-8 gap-4">
+                <h3 className="text-lg md:text-xl font-bold text-white flex items-center gap-2 self-start md:self-center">
                     <CalendarIcon className="w-5 h-5 text-accent" />
                     Profit Calendar
                 </h3>
-                <div className="flex items-center gap-4 bg-slate-900/50 p-1 rounded-xl border border-white/5">
+                <div className="flex items-center gap-2 md:gap-4 bg-slate-900/50 p-1 rounded-xl border border-white/5 w-full md:w-auto justify-between md:justify-start">
                     <button onClick={prevMonth} className="p-2 hover:text-white text-slate-400 transition-colors hover:bg-white/10 rounded-lg">
                         <ChevronLeft className="w-5 h-5" />
                     </button>
-                    <span className="text-sm font-bold text-white w-32 text-center select-none">
+                    <span className="text-sm font-bold text-white text-center select-none">
                         {monthName} {year}
                     </span>
                     <button onClick={nextMonth} className="p-2 hover:text-white text-slate-400 transition-colors hover:bg-white/10 rounded-lg">
@@ -130,14 +128,14 @@ const ProfitCalendar = ({ statsMap }: { statsMap: Record<string, Statistic> }) =
                 </div>
             </div>
 
-            <div className="grid grid-cols-7 gap-2 md:gap-4 mb-2 text-center">
-                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
-                    <div key={d} className="text-xs font-bold text-slate-500 uppercase tracking-wider py-2">
+            <div className="grid grid-cols-7 gap-1 md:gap-4 mb-2 text-center">
+                {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
+                    <div key={i} className="text-[10px] md:text-xs font-bold text-slate-500 uppercase tracking-wider py-2">
                         {d}
                     </div>
                 ))}
             </div>
-            <div className="grid grid-cols-7 gap-2 md:gap-4">
+            <div className="grid grid-cols-7 gap-1 md:gap-4">
                 {days}
             </div>
         </div>
@@ -411,7 +409,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout }) =
             </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 md:p-10 lg:p-14 pb-20 scroll-smooth">
+        <div className="flex-1 overflow-y-auto p-4 md:p-10 lg:p-14 pb-20 scroll-smooth">
              {loading ? (
                 <div className="flex flex-col items-center justify-center h-[70vh] gap-4">
                     <div className="w-12 h-12 border-4 border-primary/30 border-t-primary rounded-full animate-spin"></div>
@@ -439,7 +437,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout }) =
                      {/* Header */}
                     <header className="flex flex-col xl:flex-row xl:items-end justify-between gap-6 mb-8">
                         <div>
-                            <h1 className="text-3xl md:text-4xl font-bold text-white mb-3 tracking-tight">
+                            <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-white mb-3 tracking-tight truncate">
                                 {selectedAccount?.name}
                             </h1>
                             <div className="flex flex-wrap items-center gap-3 text-sm text-slate-400">
@@ -468,21 +466,21 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout }) =
                             <div className="bg-white/5 p-1 rounded-xl flex items-center border border-white/5">
                                 <button 
                                     onClick={() => setFilterRange('all')}
-                                    className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${filterRange === 'all' ? 'bg-slate-700 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}
+                                    className={`px-3 md:px-4 py-2 rounded-lg text-xs font-bold transition-all ${filterRange === 'all' ? 'bg-slate-700 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}
                                 >
-                                    All Time
+                                    All
                                 </button>
                                 <button 
                                     onClick={() => setFilterRange('7d')}
-                                    className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${filterRange === '7d' ? 'bg-slate-700 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}
+                                    className={`px-3 md:px-4 py-2 rounded-lg text-xs font-bold transition-all ${filterRange === '7d' ? 'bg-slate-700 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}
                                 >
-                                    7 Days
+                                    7D
                                 </button>
                                 <button 
                                     onClick={() => setFilterRange('30d')}
-                                    className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${filterRange === '30d' ? 'bg-slate-700 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}
+                                    className={`px-3 md:px-4 py-2 rounded-lg text-xs font-bold transition-all ${filterRange === '30d' ? 'bg-slate-700 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}
                                 >
-                                    30 Days
+                                    30D
                                 </button>
                             </div>
 
@@ -598,13 +596,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout }) =
                     </div>
 
                     {/* Charts & Calendar - Stacked Layout */}
-                    <div className="flex flex-col gap-8 mb-12">
-                        <div className="glass-card p-6 md:p-8 rounded-3xl w-full">
+                    <div className="flex flex-col gap-6 md:gap-8 mb-12">
+                        <div className="glass-card p-4 md:p-8 rounded-3xl w-full">
                             <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
                                 <div className="w-2 h-6 bg-primary rounded-full"></div>
                                 Equity Curve
                             </h3>
-                            <div className="h-[300px] w-full">
+                            <div className="h-[250px] md:h-[300px] w-full">
                                 {chartData.length > 0 ? (
                                     <ResponsiveContainer width="100%" height="100%">
                                         <AreaChart data={chartData}>
@@ -618,14 +616,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout }) =
                                             <XAxis 
                                                 dataKey="name" 
                                                 stroke="#94a3b8" 
-                                                fontSize={12} 
+                                                fontSize={10} 
                                                 tickLine={false} 
                                                 axisLine={false}
                                                 dy={10}
                                             />
                                             <YAxis 
                                                 stroke="#94a3b8" 
-                                                fontSize={12} 
+                                                fontSize={10} 
                                                 tickLine={false} 
                                                 axisLine={false} 
                                                 domain={['auto', 'auto']} 
@@ -656,63 +654,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout }) =
 
                          {/* Profit Calendar Section */}
                          <ProfitCalendar statsMap={dailyStatsMap} />
-                    </div>
-
-                    {/* Table */}
-                    <div className="glass-card rounded-3xl overflow-hidden">
-                        <div className="p-6 border-b border-white/5 flex items-center justify-between">
-                            <h3 className="text-lg font-bold text-white">Recent Data Streams</h3>
-                            <div className="flex gap-2">
-                                <span className="w-3 h-3 rounded-full bg-red-500 animate-pulse"></span>
-                                <span className="text-xs text-slate-400 font-mono">LIVE</span>
-                            </div>
-                        </div>
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left text-sm text-slate-400">
-                                <thead className="bg-slate-900/50 text-xs uppercase font-bold text-slate-500 tracking-wider">
-                                    <tr>
-                                        <th className="px-6 py-4">Time</th>
-                                        <th className="px-6 py-4">Session Trades</th>
-                                        <th className="px-6 py-4">P/L Delta</th>
-                                        <th className="px-6 py-4 text-right">Balance</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-white/5">
-                                    {/* Sort Newest -> Oldest for Table View */}
-                                    {stats.length > 0 ? [...stats].sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).slice(0, 10).map((stat, i) => (
-                                        <MotionTr 
-                                            key={stat.id}
-                                            initial={{ opacity: 0, y: 10 }}
-                                            animate={{ opacity: 1, y: 0 }}
-                                            transition={{ delay: i * 0.05 }}
-                                            className="hover:bg-white/5 transition-colors"
-                                        >
-                                            <td className="px-6 py-4 font-mono text-slate-300">
-                                                {new Date(stat.timestamp).toLocaleTimeString()}
-                                                <span className="text-slate-600 ml-2 text-xs">{new Date(stat.timestamp).toLocaleDateString()}</span>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <span className="bg-slate-800 text-slate-300 px-2 py-1 rounded-md text-xs font-mono">
-                                                    {stat.trades_today}
-                                                </span>
-                                            </td>
-                                            <td className={`px-6 py-4 font-bold ${stat.daily_pl >= 0 ? 'text-accent' : 'text-danger'}`}>
-                                                {stat.daily_pl >= 0 ? '+' : ''}{stat.daily_pl.toFixed(2)}
-                                            </td>
-                                            <td className="px-6 py-4 text-white text-right font-bold font-mono">
-                                                ${stat.total_balance.toLocaleString()}
-                                            </td>
-                                        </MotionTr>
-                                    )) : (
-                                        <tr>
-                                            <td colSpan={4} className="px-6 py-12 text-center text-slate-500">
-                                                No incoming data stream...
-                                            </td>
-                                        </tr>
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
                     </div>
                 </MotionDiv>
             )}
