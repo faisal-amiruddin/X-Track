@@ -7,7 +7,8 @@ import {
 import {
   LayoutDashboard, Wallet, LogOut, Plus, RefreshCw, Trash2,
   TrendingUp, TrendingDown, DollarSign, Activity, Key, Eye, EyeOff,
-  Menu, X, Users, ChevronRight, User as UserIcon, Calendar, Filter
+  Menu, X, Users, ChevronRight, User as UserIcon, Calendar as CalendarIcon, Filter,
+  ChevronLeft
 } from 'lucide-react';
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
 import { Account, Statistic, TodaySummary, User, OverallSummary } from '../types';
@@ -42,6 +43,103 @@ const TiltCard = ({ children, className }: { children: React.ReactNode, classNam
             >
                 {children}
             </MotionDiv>
+        </div>
+    );
+};
+
+// --- Calendar Component ---
+const ProfitCalendar = ({ statsMap }: { statsMap: Record<string, Statistic> }) => {
+    const [currentDate, setCurrentDate] = useState(new Date());
+
+    const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
+    const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay(); // 0 = Sunday
+
+    const monthName = currentDate.toLocaleString('default', { month: 'long' });
+    const year = currentDate.getFullYear();
+
+    const prevMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
+    const nextMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
+
+    const days = [];
+    // Padding for empty days at start
+    for (let i = 0; i < firstDayOfMonth; i++) {
+        days.push(<div key={`empty-${i}`} className="h-24 md:h-28 bg-slate-900/30 border border-white/5 rounded-lg opacity-50"></div>);
+    }
+
+    // Actual days
+    for (let d = 1; d <= daysInMonth; d++) {
+        const dateStr = `${year}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        const stat = statsMap[dateStr];
+        const hasData = !!stat;
+        const isProfit = hasData && stat.daily_pl >= 0;
+
+        days.push(
+            <div 
+                key={d} 
+                className={`relative h-24 md:h-28 p-2 rounded-xl border transition-all hover:scale-[1.03] hover:z-10 group ${
+                    hasData 
+                        ? isProfit 
+                            ? 'bg-green-500/10 border-green-500/30 shadow-[0_0_15px_rgba(34,197,94,0.1)]' 
+                            : 'bg-red-500/10 border-red-500/30 shadow-[0_0_15px_rgba(239,68,68,0.1)]'
+                        : 'bg-slate-800/20 border-white/5 hover:bg-slate-800/40'
+                }`}
+            >
+                <span className={`text-xs font-mono font-bold ${
+                    d === new Date().getDate() && currentDate.getMonth() === new Date().getMonth() 
+                        ? 'text-primary bg-primary/20 px-1.5 py-0.5 rounded-full' 
+                        : 'text-slate-500'
+                }`}>
+                    {d}
+                </span>
+
+                {hasData ? (
+                    <div className="flex flex-col items-center justify-center h-full pb-4">
+                        <span className={`text-sm md:text-lg font-bold ${isProfit ? 'text-green-400' : 'text-red-400'}`}>
+                            {stat.daily_pl >= 0 ? '+' : ''}{stat.daily_pl.toLocaleString('en-US', {maximumFractionDigits: 0})}
+                        </span>
+                        <span className="text-[10px] text-slate-500 font-mono mt-1 hidden md:block">
+                            {stat.trades_today} Trades
+                        </span>
+                    </div>
+                ) : (
+                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                         <span className="text-[10px] text-slate-600">-</span>
+                    </div>
+                )}
+            </div>
+        );
+    }
+
+    return (
+        <div className="glass-card rounded-3xl p-6 md:p-8">
+            <div className="flex items-center justify-between mb-8">
+                <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                    <CalendarIcon className="w-5 h-5 text-accent" />
+                    Profit Calendar
+                </h3>
+                <div className="flex items-center gap-4 bg-slate-900/50 p-1 rounded-xl border border-white/5">
+                    <button onClick={prevMonth} className="p-2 hover:text-white text-slate-400 transition-colors hover:bg-white/10 rounded-lg">
+                        <ChevronLeft className="w-5 h-5" />
+                    </button>
+                    <span className="text-sm font-bold text-white w-32 text-center select-none">
+                        {monthName} {year}
+                    </span>
+                    <button onClick={nextMonth} className="p-2 hover:text-white text-slate-400 transition-colors hover:bg-white/10 rounded-lg">
+                        <ChevronRight className="w-5 h-5" />
+                    </button>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-7 gap-2 md:gap-4 mb-2 text-center">
+                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
+                    <div key={d} className="text-xs font-bold text-slate-500 uppercase tracking-wider py-2">
+                        {d}
+                    </div>
+                ))}
+            </div>
+            <div className="grid grid-cols-7 gap-2 md:gap-4">
+                {days}
+            </div>
         </div>
     );
 };
@@ -95,7 +193,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout }) =
   const fetchStats = async (accountId: number, range: FilterRange) => {
     setRefreshing(true);
     try {
-      // Always fetch Summary and Today's data regardless of filter
       const [todayRes, overallRes] = await Promise.all([
         api.statistics.getToday(token, accountId),
         api.statistics.getOverall(token, accountId)
@@ -104,11 +201,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout }) =
       if (todayRes.success) setTodaySummary(todayRes.data || null);
       if (overallRes.success) setOverallSummary(overallRes.data || null);
 
-      // Fetch List based on Filter
       let listRes;
       if (range === 'all') {
-         // Default fetches page 1, size 100 to get a good chart overview
-         listRes = await api.statistics.getAll(token, accountId, 1, 100);
+         listRes = await api.statistics.getAll(token, accountId, 1, 300); // Increased limit to fill calendar
       } else {
          const endDate = new Date();
          const startDate = new Date();
@@ -116,7 +211,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout }) =
          if (range === '7d') startDate.setDate(endDate.getDate() - 7);
          if (range === '30d') startDate.setDate(endDate.getDate() - 30);
 
-         // Format YYYY-MM-DD
          const formatDate = (d: Date) => d.toISOString().split('T')[0];
          listRes = await api.statistics.getRange(token, accountId, formatDate(startDate), formatDate(endDate));
       }
@@ -168,24 +262,40 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout }) =
     [accounts, selectedAccountId]
   );
 
-  // 1. Fix Chart Direction: Sort data Oldest -> Newest
-  const chartData = useMemo(() => {
-    // Clone array before sorting to avoid mutating state
-    const sortedStats = [...stats].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+  // --- Logic for Unique Daily Stats (Last record per day) ---
+  const dailyStatsMap = useMemo(() => {
+    const map: Record<string, Statistic> = {};
+    
+    // Sort oldest to newest first, so the iteration ends with the latest record for a day
+    const sorted = [...stats].sort((a,b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    
+    sorted.forEach(s => {
+        // Use YYYY-MM-DD key
+        const dateKey = new Date(s.timestamp).toISOString().split('T')[0];
+        map[dateKey] = s;
+    });
 
-    return sortedStats.map(s => ({
+    return map;
+  }, [stats]);
+
+  const uniqueDailyStats = useMemo(() => Object.values(dailyStatsMap), [dailyStatsMap]);
+
+  // Chart Data: Uses the raw stats but sorted (or unique stats depending on preference, unique is cleaner for P/L)
+  // Let's use uniqueDailyStats for the chart to match Net Profit logic
+  const chartData = useMemo(() => {
+    return uniqueDailyStats.sort((a,b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()).map(s => ({
       name: new Date(s.timestamp).toLocaleDateString(undefined, {month: 'short', day: 'numeric'}),
       pl: s.daily_pl,
       balance: s.total_balance,
       time: new Date(s.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
       fullDate: new Date(s.timestamp).toLocaleString()
     }));
-  }, [stats]);
+  }, [uniqueDailyStats]);
 
-  // 2. Calculate Net Profit based on loaded stats
+  // Net Profit: Sum of unique days only
   const netProfit = useMemo(() => {
-      return stats.reduce((acc, curr) => acc + curr.daily_pl, 0);
-  }, [stats]);
+      return uniqueDailyStats.reduce((acc, curr) => acc + curr.daily_pl, 0);
+  }, [uniqueDailyStats]);
 
   return (
     <div className="flex h-screen bg-background text-slate-200 overflow-hidden relative font-sans">
@@ -355,7 +465,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout }) =
                         </div>
                         
                         <div className="flex flex-wrap items-center gap-3">
-                            {/* 3. Filter Controls */}
                             <div className="bg-white/5 p-1 rounded-xl flex items-center border border-white/5">
                                 <button 
                                     onClick={() => setFilterRange('all')}
@@ -394,7 +503,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout }) =
                         </div>
                     </header>
 
-                    {/* Stats Grid 3D - Updated to 4 cols */}
+                    {/* Stats Grid 3D */}
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-12">
                         <TiltCard>
                             <div className="flex items-start justify-between mb-6">
@@ -413,7 +522,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout }) =
                             </div>
                         </TiltCard>
 
-                        {/* 2. New Net Profit Card */}
+                        {/* Updated Net Profit Card */}
                         <TiltCard>
                             <div className="flex items-start justify-between mb-6">
                                 <div>
@@ -434,7 +543,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout }) =
                                 </div>
                             </div>
                             <div className="text-[10px] text-slate-500">
-                                Cumulative P/L of {stats.length} records
+                                Calculated from {uniqueDailyStats.length} trading days
                             </div>
                         </TiltCard>
 
@@ -488,7 +597,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout }) =
                         </TiltCard>
                     </div>
 
-                    {/* Charts */}
+                    {/* Charts & Calendar */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
                         <div className="glass-card p-6 md:p-8 rounded-3xl">
                             <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
@@ -545,52 +654,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout }) =
                             </div>
                         </div>
 
-                         <div className="glass-card p-6 md:p-8 rounded-3xl">
-                            <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
-                                <div className="w-2 h-6 bg-accent rounded-full"></div>
-                                P/L Performance
-                            </h3>
-                            <div className="h-[300px] w-full">
-                                {chartData.length > 0 ? (
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <LineChart data={chartData}>
-                                            <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} opacity={0.3} />
-                                            <XAxis 
-                                                dataKey="name" 
-                                                stroke="#94a3b8" 
-                                                fontSize={12} 
-                                                tickLine={false} 
-                                                axisLine={false}
-                                                dy={10}
-                                            />
-                                            <YAxis 
-                                                stroke="#94a3b8" 
-                                                fontSize={12} 
-                                                tickLine={false} 
-                                                axisLine={false} 
-                                                dx={-10}
-                                            />
-                                            <Tooltip 
-                                                contentStyle={{ backgroundColor: 'rgba(17, 24, 39, 0.9)', backdropFilter: 'blur(10px)', borderColor: '#334155', color: '#fff', borderRadius: '12px' }}
-                                                labelStyle={{ color: '#94a3b8', marginBottom: '0.5rem' }}
-                                            />
-                                            <Line 
-                                                type="monotone" 
-                                                dataKey="pl" 
-                                                stroke="#06b6d4" 
-                                                strokeWidth={3} 
-                                                dot={{ r: 4, fill: '#06b6d4', strokeWidth: 0 }} 
-                                                activeDot={{ r: 6, stroke: 'white', strokeWidth: 2 }}
-                                            />
-                                        </LineChart>
-                                    </ResponsiveContainer>
-                                ) : (
-                                    <div className="h-full flex items-center justify-center text-slate-500 border border-dashed border-slate-700 rounded-xl">
-                                        No data available for selected range
-                                    </div>
-                                )}
-                            </div>
-                        </div>
+                         {/* Profit Calendar Section */}
+                         <ProfitCalendar statsMap={dailyStatsMap} />
                     </div>
 
                     {/* Table */}
