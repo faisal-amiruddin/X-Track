@@ -7,7 +7,7 @@ import {
 import {
   LayoutDashboard, Wallet, LogOut, Plus, RefreshCw, Trash2,
   TrendingUp, TrendingDown, DollarSign, Activity, Key, Eye, EyeOff,
-  Menu, X, Users, ChevronRight, User as UserIcon
+  Menu, X, Users, ChevronRight, User as UserIcon, Calendar, Filter
 } from 'lucide-react';
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
 import { Account, Statistic, TodaySummary, User, OverallSummary } from '../types';
@@ -46,6 +46,8 @@ const TiltCard = ({ children, className }: { children: React.ReactNode, classNam
     );
 };
 
+type FilterRange = 'all' | '7d' | '30d';
+
 export const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout }) => {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
@@ -53,11 +55,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout }) =
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [newAccountName, setNewAccountName] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  
+  // Data State
   const [stats, setStats] = useState<Statistic[]>([]);
   const [todaySummary, setTodaySummary] = useState<TodaySummary | null>(null);
   const [overallSummary, setOverallSummary] = useState<OverallSummary | null>(null);
+  
+  // UI State
   const [refreshing, setRefreshing] = useState(false);
   const [showApiToken, setShowApiToken] = useState<Record<number, boolean>>({});
+  const [filterRange, setFilterRange] = useState<FilterRange>('all');
 
   useEffect(() => {
     fetchAccounts();
@@ -65,13 +72,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout }) =
 
   useEffect(() => {
     if (selectedAccountId) {
-      fetchStats(selectedAccountId);
+      fetchStats(selectedAccountId, filterRange);
     } else {
       setStats([]);
       setTodaySummary(null);
       setOverallSummary(null);
     }
-  }, [selectedAccountId]);
+  }, [selectedAccountId, filterRange]);
 
   const fetchAccounts = async () => {
     setLoading(true);
@@ -85,18 +92,39 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout }) =
     setLoading(false);
   };
 
-  const fetchStats = async (accountId: number) => {
+  const fetchStats = async (accountId: number, range: FilterRange) => {
     setRefreshing(true);
     try {
-      const [listRes, todayRes, overallRes] = await Promise.all([
-        api.statistics.getAll(token, accountId),
+      // Always fetch Summary and Today's data regardless of filter
+      const [todayRes, overallRes] = await Promise.all([
         api.statistics.getToday(token, accountId),
         api.statistics.getOverall(token, accountId)
       ]);
 
-      if (listRes.success) setStats(listRes.data || []);
       if (todayRes.success) setTodaySummary(todayRes.data || null);
       if (overallRes.success) setOverallSummary(overallRes.data || null);
+
+      // Fetch List based on Filter
+      let listRes;
+      if (range === 'all') {
+         // Default fetches page 1, size 100 to get a good chart overview
+         listRes = await api.statistics.getAll(token, accountId, 1, 100);
+      } else {
+         const endDate = new Date();
+         const startDate = new Date();
+         
+         if (range === '7d') startDate.setDate(endDate.getDate() - 7);
+         if (range === '30d') startDate.setDate(endDate.getDate() - 30);
+
+         // Format YYYY-MM-DD
+         const formatDate = (d: Date) => d.toISOString().split('T')[0];
+         listRes = await api.statistics.getRange(token, accountId, formatDate(startDate), formatDate(endDate));
+      }
+
+      if (listRes.success) {
+          setStats(listRes.data || []);
+      }
+
     } catch (e) {
       console.error("Failed to fetch stats", e);
     } finally {
@@ -140,13 +168,23 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout }) =
     [accounts, selectedAccountId]
   );
 
+  // 1. Fix Chart Direction: Sort data Oldest -> Newest
   const chartData = useMemo(() => {
-    return stats.map(s => ({
-      name: new Date(s.timestamp).toLocaleDateString(),
+    // Clone array before sorting to avoid mutating state
+    const sortedStats = [...stats].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+
+    return sortedStats.map(s => ({
+      name: new Date(s.timestamp).toLocaleDateString(undefined, {month: 'short', day: 'numeric'}),
       pl: s.daily_pl,
       balance: s.total_balance,
-      time: new Date(s.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
+      time: new Date(s.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+      fullDate: new Date(s.timestamp).toLocaleString()
     }));
+  }, [stats]);
+
+  // 2. Calculate Net Profit based on loaded stats
+  const netProfit = useMemo(() => {
+      return stats.reduce((acc, curr) => acc + curr.daily_pl, 0);
   }, [stats]);
 
   return (
@@ -289,7 +327,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout }) =
             ) : (
                 <MotionDiv initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
                      {/* Header */}
-                    <header className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 mb-12">
+                    <header className="flex flex-col xl:flex-row xl:items-end justify-between gap-6 mb-8">
                         <div>
                             <h1 className="text-3xl md:text-4xl font-bold text-white mb-3 tracking-tight">
                                 {selectedAccount?.name}
@@ -316,7 +354,29 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout }) =
                             </div>
                         </div>
                         
-                        <div className="flex items-center gap-3">
+                        <div className="flex flex-wrap items-center gap-3">
+                            {/* 3. Filter Controls */}
+                            <div className="bg-white/5 p-1 rounded-xl flex items-center border border-white/5">
+                                <button 
+                                    onClick={() => setFilterRange('all')}
+                                    className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${filterRange === 'all' ? 'bg-slate-700 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}
+                                >
+                                    All Time
+                                </button>
+                                <button 
+                                    onClick={() => setFilterRange('7d')}
+                                    className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${filterRange === '7d' ? 'bg-slate-700 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}
+                                >
+                                    7 Days
+                                </button>
+                                <button 
+                                    onClick={() => setFilterRange('30d')}
+                                    className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${filterRange === '30d' ? 'bg-slate-700 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}
+                                >
+                                    30 Days
+                                </button>
+                            </div>
+
                              <button 
                                  onClick={() => handleDeleteAccount(selectedAccountId!)}
                                  className="p-3 text-slate-400 hover:text-white hover:bg-red-500/20 rounded-xl transition-all border border-transparent hover:border-red-500/20"
@@ -325,39 +385,64 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout }) =
                                 <Trash2 className="w-5 h-5" />
                             </button>
                             <button 
-                                onClick={() => selectedAccountId && fetchStats(selectedAccountId)}
+                                onClick={() => selectedAccountId && fetchStats(selectedAccountId, filterRange)}
                                 className={`flex items-center gap-2 px-4 py-3 bg-white/5 hover:bg-white/10 text-white rounded-xl transition-all border border-white/5 font-medium ${refreshing ? 'opacity-70' : ''}`}
                             >
                                 <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-                                <span>Refresh</span>
+                                <span className="hidden sm:inline">Refresh</span>
                             </button>
                         </div>
                     </header>
 
-                    {/* Stats Grid 3D - INCREASED GAP TO gap-8 */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
+                    {/* Stats Grid 3D - Updated to 4 cols */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-12">
                         <TiltCard>
                             <div className="flex items-start justify-between mb-6">
                                 <div>
-                                    <p className="text-slate-400 text-sm font-medium uppercase tracking-wider">Total Balance</p>
-                                    <h3 className="text-3xl font-bold text-white mt-2">
+                                    <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Total Balance</p>
+                                    <h3 className="text-2xl font-bold text-white mt-2">
                                         ${overallSummary?.current_balance.toLocaleString('en-US', {minimumFractionDigits: 2}) || '0.00'}
                                     </h3>
                                 </div>
                                 <div className="p-3 bg-gradient-to-br from-blue-500/20 to-blue-600/10 rounded-xl border border-blue-500/20">
-                                    <DollarSign className="w-6 h-6 text-blue-400" />
+                                    <DollarSign className="w-5 h-5 text-blue-400" />
                                 </div>
                             </div>
-                            <div className="text-xs text-slate-500 font-mono">
+                            <div className="text-[10px] text-slate-500 font-mono">
                                Last sync: {overallSummary?.latest_update ? new Date(overallSummary.latest_update).toLocaleTimeString() : '--:--'}
+                            </div>
+                        </TiltCard>
+
+                        {/* 2. New Net Profit Card */}
+                        <TiltCard>
+                            <div className="flex items-start justify-between mb-6">
+                                <div>
+                                    <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Net Profit {filterRange !== 'all' && '(Period)'}</p>
+                                    <h3 className={`text-2xl font-bold mt-2 ${
+                                        netProfit >= 0 ? 'text-green-400 drop-shadow-[0_0_8px_rgba(74,222,128,0.3)]' : 'text-red-400 drop-shadow-[0_0_8px_rgba(248,113,113,0.3)]'
+                                    }`}>
+                                        {netProfit >= 0 ? '+' : ''}
+                                        ${netProfit.toLocaleString('en-US', {minimumFractionDigits: 2})}
+                                    </h3>
+                                </div>
+                                <div className={`p-3 rounded-xl border ${
+                                    netProfit >= 0 
+                                    ? 'bg-green-500/10 border-green-500/20' 
+                                    : 'bg-red-500/10 border-red-500/20'
+                                }`}>
+                                    <Wallet className={`w-5 h-5 ${netProfit >= 0 ? 'text-green-400' : 'text-red-400'}`} />
+                                </div>
+                            </div>
+                            <div className="text-[10px] text-slate-500">
+                                Cumulative P/L of {stats.length} records
                             </div>
                         </TiltCard>
 
                         <TiltCard>
                              <div className="flex items-start justify-between mb-6">
                                 <div>
-                                    <p className="text-slate-400 text-sm font-medium uppercase tracking-wider">Daily P/L</p>
-                                    <h3 className={`text-3xl font-bold mt-2 ${
+                                    <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Daily P/L</p>
+                                    <h3 className={`text-2xl font-bold mt-2 ${
                                         (todaySummary?.daily_pl || 0) >= 0 ? 'text-accent drop-shadow-[0_0_8px_rgba(6,182,212,0.5)]' : 'text-danger drop-shadow-[0_0_8px_rgba(244,63,94,0.5)]'
                                     }`}>
                                         {(todaySummary?.daily_pl || 0) >= 0 ? '+' : ''}
@@ -370,9 +455,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout }) =
                                     : 'bg-danger/10 border-danger/20'
                                 }`}>
                                     {(todaySummary?.daily_pl || 0) >= 0 ? (
-                                        <TrendingUp className="w-6 h-6 text-accent" />
+                                        <TrendingUp className="w-5 h-5 text-accent" />
                                     ) : (
-                                        <TrendingDown className="w-6 h-6 text-danger" />
+                                        <TrendingDown className="w-5 h-5 text-danger" />
                                     )}
                                 </div>
                             </div>
@@ -388,23 +473,23 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout }) =
                         <TiltCard>
                             <div className="flex items-start justify-between mb-6">
                                 <div>
-                                    <p className="text-slate-400 text-sm font-medium uppercase tracking-wider">Trades Today</p>
-                                    <h3 className="text-3xl font-bold text-white mt-2">
+                                    <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Trades Today</p>
+                                    <h3 className="text-2xl font-bold text-white mt-2">
                                         {todaySummary?.trades_today || 0}
                                     </h3>
                                 </div>
                                 <div className="p-3 bg-purple-500/10 rounded-xl border border-purple-500/20">
-                                    <Activity className="w-6 h-6 text-purple-400" />
+                                    <Activity className="w-5 h-5 text-purple-400" />
                                 </div>
                             </div>
-                             <div className="text-xs text-slate-500">
-                                Total Data Points: {todaySummary?.total_records || 0}
+                             <div className="text-[10px] text-slate-500">
+                                Total Activity: {todaySummary?.total_records || 0} signals
                             </div>
                         </TiltCard>
                     </div>
 
-                    {/* Charts - INCREASED GAP TO gap-10 */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 mb-12">
+                    {/* Charts */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
                         <div className="glass-card p-6 md:p-8 rounded-3xl">
                             <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
                                 <div className="w-2 h-6 bg-primary rounded-full"></div>
@@ -422,7 +507,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout }) =
                                             </defs>
                                             <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} opacity={0.3} />
                                             <XAxis 
-                                                dataKey="time" 
+                                                dataKey="name" 
                                                 stroke="#94a3b8" 
                                                 fontSize={12} 
                                                 tickLine={false} 
@@ -440,6 +525,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout }) =
                                             <Tooltip 
                                                 contentStyle={{ backgroundColor: 'rgba(17, 24, 39, 0.9)', backdropFilter: 'blur(10px)', borderColor: '#334155', color: '#fff', borderRadius: '12px' }}
                                                 itemStyle={{ color: '#fff' }}
+                                                labelStyle={{ color: '#94a3b8', marginBottom: '0.5rem' }}
                                             />
                                             <Area 
                                                 type="monotone" 
@@ -453,7 +539,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout }) =
                                     </ResponsiveContainer>
                                 ) : (
                                     <div className="h-full flex items-center justify-center text-slate-500 border border-dashed border-slate-700 rounded-xl">
-                                        No data available
+                                        No data available for selected range
                                     </div>
                                 )}
                             </div>
@@ -462,7 +548,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout }) =
                          <div className="glass-card p-6 md:p-8 rounded-3xl">
                             <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
                                 <div className="w-2 h-6 bg-accent rounded-full"></div>
-                                Performance
+                                P/L Performance
                             </h3>
                             <div className="h-[300px] w-full">
                                 {chartData.length > 0 ? (
@@ -470,7 +556,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout }) =
                                         <LineChart data={chartData}>
                                             <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} opacity={0.3} />
                                             <XAxis 
-                                                dataKey="time" 
+                                                dataKey="name" 
                                                 stroke="#94a3b8" 
                                                 fontSize={12} 
                                                 tickLine={false} 
@@ -486,9 +572,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout }) =
                                             />
                                             <Tooltip 
                                                 contentStyle={{ backgroundColor: 'rgba(17, 24, 39, 0.9)', backdropFilter: 'blur(10px)', borderColor: '#334155', color: '#fff', borderRadius: '12px' }}
+                                                labelStyle={{ color: '#94a3b8', marginBottom: '0.5rem' }}
                                             />
                                             <Line 
-                                                type="stepAfter" 
+                                                type="monotone" 
                                                 dataKey="pl" 
                                                 stroke="#06b6d4" 
                                                 strokeWidth={3} 
@@ -499,7 +586,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout }) =
                                     </ResponsiveContainer>
                                 ) : (
                                     <div className="h-full flex items-center justify-center text-slate-500 border border-dashed border-slate-700 rounded-xl">
-                                        No data available
+                                        No data available for selected range
                                     </div>
                                 )}
                             </div>
@@ -526,7 +613,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout }) =
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-white/5">
-                                    {stats.length > 0 ? stats.slice().reverse().slice(0, 8).map((stat, i) => (
+                                    {/* Sort Newest -> Oldest for Table View */}
+                                    {stats.length > 0 ? [...stats].sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).slice(0, 10).map((stat, i) => (
                                         <MotionTr 
                                             key={stat.id}
                                             initial={{ opacity: 0, y: 10 }}
@@ -553,7 +641,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout }) =
                                     )) : (
                                         <tr>
                                             <td colSpan={4} className="px-6 py-12 text-center text-slate-500">
-                                                Waiting for incoming data stream...
+                                                No incoming data stream...
                                             </td>
                                         </tr>
                                     )}
